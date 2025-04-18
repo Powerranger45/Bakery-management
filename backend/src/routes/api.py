@@ -1,5 +1,3 @@
-# backend/src/routes/api.py
-
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Response
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError, jwt
@@ -24,7 +22,8 @@ from src.schemas import (
     OrderResponse
 )
 
-router = APIRouter()
+# Define the router with the correct name
+api_router = APIRouter()  # Changed from 'router' to 'api_router'
 
 # Security configurations
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -69,7 +68,7 @@ def admin_required(current_user: User = Depends(get_current_user)):
     return current_user
 
 # Auth endpoints
-@router.post("/register", response_model=dict, tags=["auth"])
+@api_router.post("/register", response_model=dict, tags=["auth"])  # Updated to use api_router
 def register(user_data: UserCreate, db: Session = Depends(get_db)):
     existing_user = db.query(User).filter(
         (User.username == user_data.username) |
@@ -99,7 +98,7 @@ def register(user_data: UserCreate, db: Session = Depends(get_db)):
         "user": UserResponse.from_orm(new_user).dict()
     }
 
-@router.post("/login", response_model=dict, tags=["auth"])
+@api_router.post("/login", response_model=dict, tags=["auth"])  # Updated to use api_router
 def login(
     user_data: UserLogin,
     db: Session = Depends(get_db),
@@ -131,18 +130,18 @@ def login(
     }
 
 # User endpoints
-@router.get("/users/me", response_model=UserResponse, tags=["auth"])
+@api_router.get("/users/me", response_model=UserResponse, tags=["auth"])  # Updated to use api_router
 def get_current_user_profile(current_user: User = Depends(get_current_user)):
     return UserResponse.from_orm(current_user)
 
-@router.get("/users",
-            response_model=list[UserResponse],
-            tags=["users"],
-            dependencies=[Depends(admin_required)])
+@api_router.get("/users",
+                response_model=list[UserResponse],
+                tags=["users"],
+                dependencies=[Depends(admin_required)])  # Updated to use api_router
 def get_users(db: Session = Depends(get_db)):
     return db.query(User).all()
 
-@router.get("/users/{user_id}", response_model=UserResponse, tags=["users"])
+@api_router.get("/users/{user_id}", response_model=UserResponse, tags=["users"])  # Updated to use api_router
 def get_user(
     user_id: int,
     current_user: User = Depends(get_current_user),
@@ -158,10 +157,10 @@ def get_user(
     return user
 
 # Product endpoints
-@router.post("/products",
-            response_model=dict,
-            tags=["products"],
-            dependencies=[Depends(admin_required)])
+@api_router.post("/products",
+                response_model=dict,
+                tags=["products"],
+                dependencies=[Depends(admin_required)])  # Updated to use api_router
 def create_product(
     product_data: ProductCreate,
     db: Session = Depends(get_db)
@@ -189,12 +188,12 @@ def create_product(
         "product": ProductResponse.from_orm(new_product).dict()
     }
 
-@router.get("/products", response_model=list[ProductResponse], tags=["products"])
+@api_router.get("/products", response_model=list[ProductResponse], tags=["products"])  # Updated to use api_router
 def get_products(db: Session = Depends(get_db)):
     return db.query(Product).all()
 
 # Order endpoints
-@router.post("/orders", response_model=dict, tags=["orders"])
+@api_router.post("/orders", response_model=dict, tags=["orders"])  # Updated to use api_router
 def create_order(
     order_data: OrderCreate,
     db: Session = Depends(get_db),
@@ -226,7 +225,7 @@ def create_order(
     }
 
 # Cart endpoints
-@router.post("/cart/add", response_model=dict, tags=["cart"])
+@api_router.post("/cart/add", response_model=dict, tags=["cart"])  # Updated to use api_router
 def add_to_cart(
     cart_item: CartItem,
     db: Session = Depends(get_db),
@@ -258,7 +257,7 @@ def add_to_cart(
     publish_message("cart_events", f"User {current_user.id} added product {product.id} (qty: {cart_item.quantity}) to cart.")
     return {"message": "Product added to cart"}
 
-@router.get("/cart", response_model=list[CartResponse], tags=["cart"])
+@api_router.get("/cart", response_model=list[CartResponse], tags=["cart"])  # Updated to use api_router
 def get_cart(
     current_user: User = Depends(get_current_user),  # Ensure this dependency
     db: Session = Depends(get_db)
@@ -266,6 +265,6 @@ def get_cart(
     cart_items = db.query(Cart).filter(Cart.user_id == current_user.id).all()
     return [CartResponse.from_orm(item) for item in cart_items]
 
-@router.get("/healthy")
+@api_router.get("/healthy")
 async def health_check():
     return {"status": "healthy"}
