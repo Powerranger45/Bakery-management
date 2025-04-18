@@ -3,10 +3,11 @@ FROM python:3.12-slim
 
 # Set environment variables for better performance and logging
 ENV PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1
+    PYTHONDONTWRITEBYTECODE=1 \
+    BAKERY_ENV=production
 
 # Set the working directory inside the container
-WORKDIR /app
+WORKDIR /bakery_backend
 
 # Copy the requirements file into the container
 COPY requirements.txt .
@@ -22,4 +23,4 @@ COPY . .
 EXPOSE 8000
 
 # Command to run the FastAPI application using Uvicorn
-CMD ["uvicorn", "src.app:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+CMD ["uvicorn", "src.app:app", "--host", "0.0.0.0", "--port", "8000"]
