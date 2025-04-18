@@ -1,0 +1,37 @@
+{
+    "name": "bakery-management-system",
+    "version": "1.0.0",
+    "description": "A bakery management system built with React, Vite, and Tailwind CSS.",
+    "main": "index.html",
+    "scripts": {
+        "dev": "vite",
+        "build": "vite build",
+        "preview": "vite preview",
+        "lint": "eslint src --ext .js,.jsx,.ts,.tsx",
+        "format": "prettier --write ."
+    },
+    "dependencies": {
+        "axios": "^1.4.0",
+        "react": "^18.2.0",
+        "react-dom": "^18.2.0",
+        "react-hot-toast": "^2.4.1",
+        "react-query": "^4.0.0",
+        "react-router-dom": "^6.14.2",
+        "tailwindcss": "^3.3.3"
+    },
+    "devDependencies": {
+        "@types/react": "^18.2.15",
+        "@types/react-dom": "^18.2.7",
+        "@typescript-eslint/eslint-plugin": "^5.62.0",
+        "@typescript-eslint/parser": "^5.62.0",
+        "@vitejs/plugin-react": "^4.4.0",
+        "autoprefixer": "^10.4.14",
+        "eslint": "^8.45.0",
+        "eslint-config-prettier": "^8.8.0",
+        "eslint-plugin-prettier": "^5.0.0",
+        "eslint-plugin-react": "^7.33.2",
+        "postcss": "^8.4.26",
+        "prettier": "^3.0.3",
+        "vite": "^4.4.5"
+    }
+}
