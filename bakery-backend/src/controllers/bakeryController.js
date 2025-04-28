@@ -4,6 +4,9 @@ const bakeryService = require('../services/bakeryService');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your_jwt_secret'; // replace with env for production
 
+// Use the queue constants from bakeryService
+const { QUEUES } = bakeryService;
+
 const bakeryController = {
   // Product controllers
   async getAllProducts(req, res) {
@@ -21,6 +24,7 @@ const bakeryController = {
       if (!product) {
         return res.status(404).json({ error: 'Product not found' });
       }
+
       res.json(product);
     } catch (error) {
       res.status(500).json({ error: 'Failed to retrieve product' });
@@ -30,6 +34,38 @@ const bakeryController = {
   async createProduct(req, res) {
     try {
       const product = await bakeryService.createProduct(req.body);
+
+      // Publish product creation event (admin activity)
+      if (bakeryService.channel && req.user && req.user.id) {
+        bakeryService.channel.sendToQueue(
+          QUEUES.USER_ACTIVITY,
+          Buffer.from(
+            JSON.stringify({
+              userId: req.user.id,
+              productId: product.id,
+              action: 'create_product',
+              timestamp: new Date(),
+            })
+          ),
+          { persistent: true }
+        );
+
+        // Analytics stream
+        bakeryService.channel.sendToQueue(
+          QUEUES.ANALYTICS,
+          Buffer.from(
+            JSON.stringify({
+              type: 'product_created',
+              productId: product.id,
+              adminId: req.user.id,
+              price: product.price,
+              timestamp: new Date(),
+            })
+          ),
+          { persistent: true }
+        );
+      }
+
       res.status(201).json(product);
     } catch (error) {
       res.status(500).json({ error: 'Failed to create product' });
@@ -42,15 +78,33 @@ const bakeryController = {
       const { userId, productId } = req.body;
       const cartItem = await bakeryService.addToCart(userId, productId);
 
-      // Publish cart event
+      // Publish cart event to all relevant queues
       if (bakeryService.channel) {
+        // User activity queue
         bakeryService.channel.sendToQueue(
-          'user-activity',
+          QUEUES.USER_ACTIVITY,
           Buffer.from(
             JSON.stringify({
               userId,
               productId,
               action: 'add_to_cart',
+              timestamp: new Date(),
+            })
+          ),
+          { persistent: true }
+        );
+
+        // Analytics stream
+        bakeryService.channel.sendToQueue(
+          QUEUES.ANALYTICS,
+          Buffer.from(
+            JSON.stringify({
+              type: 'cart_update',
+              userId,
+              productId,
+              action: 'add',
+              quantity: cartItem.quantity,
+              price: cartItem.product.price,
               timestamp: new Date(),
             })
           ),
@@ -82,6 +136,42 @@ const bakeryController = {
         productId,
         quantity
       );
+
+      // Publish to all relevant queues
+      if (bakeryService.channel) {
+        // User activity queue
+        bakeryService.channel.sendToQueue(
+          QUEUES.USER_ACTIVITY,
+          Buffer.from(
+            JSON.stringify({
+              userId,
+              productId,
+              action: 'update_cart_item',
+              quantity,
+              timestamp: new Date(),
+            })
+          ),
+          { persistent: true }
+        );
+
+        // Analytics stream
+        bakeryService.channel.sendToQueue(
+          QUEUES.ANALYTICS,
+          Buffer.from(
+            JSON.stringify({
+              type: 'cart_update',
+              userId,
+              productId,
+              action: 'update',
+              quantity,
+              price: item.product.price,
+              timestamp: new Date(),
+            })
+          ),
+          { persistent: true }
+        );
+      }
+
       res.json(item);
     } catch (error) {
       res.status(500).json({ error: 'Failed to update cart item' });
@@ -90,10 +180,41 @@ const bakeryController = {
 
   async removeFromCart(req, res) {
     try {
-      await bakeryService.removeFromCart(
-        req.params.userId,
-        req.params.productId
-      );
+      const { userId, productId } = req.params;
+      await bakeryService.removeFromCart(userId, productId);
+
+      // Publish to all relevant queues
+      if (bakeryService.channel) {
+        // User activity queue
+        bakeryService.channel.sendToQueue(
+          QUEUES.USER_ACTIVITY,
+          Buffer.from(
+            JSON.stringify({
+              userId,
+              productId,
+              action: 'remove_from_cart',
+              timestamp: new Date(),
+            })
+          ),
+          { persistent: true }
+        );
+
+        // Analytics stream
+        bakeryService.channel.sendToQueue(
+          QUEUES.ANALYTICS,
+          Buffer.from(
+            JSON.stringify({
+              type: 'cart_update',
+              userId,
+              productId,
+              action: 'remove',
+              timestamp: new Date(),
+            })
+          ),
+          { persistent: true }
+        );
+      }
+
       res.sendStatus(204);
     } catch (error) {
       res.status(500).json({ error: 'Failed to remove item' });
@@ -103,7 +224,11 @@ const bakeryController = {
   // Order controllers
   async placeOrder(req, res) {
     try {
-      const order = await bakeryService.placeOrder(req.body.userId);
+      const userId = req.body.userId;
+      const order = await bakeryService.placeOrder(userId);
+
+      // bakeryService.placeOrder already handles message publishing
+
       res.status(201).json(order);
     } catch (error) {
       res.status(500).json({ error: 'Failed to place order' });
@@ -158,6 +283,50 @@ const bakeryController = {
         maxAge: 24 * 60 * 60 * 1000, // 1 day
       });
 
+      // Publish to all relevant queues
+      if (bakeryService.channel) {
+        // User activity queue
+        bakeryService.channel.sendToQueue(
+          QUEUES.USER_ACTIVITY,
+          Buffer.from(
+            JSON.stringify({
+              userId: newUser.id,
+              action: 'register',
+              timestamp: new Date(),
+            })
+          ),
+          { persistent: true }
+        );
+
+        // Analytics stream
+        bakeryService.channel.sendToQueue(
+          QUEUES.ANALYTICS,
+          Buffer.from(
+            JSON.stringify({
+              type: 'user_registration',
+              userId: newUser.id,
+              isAdmin: newUser.isAdmin,
+              timestamp: new Date(),
+            })
+          ),
+          { persistent: true }
+        );
+
+        // Notifications stream for welcome message
+        bakeryService.channel.sendToQueue(
+          QUEUES.NOTIFICATIONS,
+          Buffer.from(
+            JSON.stringify({
+              type: 'welcome',
+              userId: newUser.id,
+              message: `Welcome to our bakery, ${email}!`,
+              timestamp: new Date(),
+            })
+          ),
+          { persistent: true }
+        );
+      }
+
       res.status(201).json({ user: newUser });
     } catch (error) {
       res
@@ -194,14 +363,28 @@ const bakeryController = {
         maxAge: 24 * 60 * 60 * 1000, // 1 day
       });
 
-      // Publish login event
+      // Publish to all relevant queues
       if (bakeryService.channel) {
+        // User activity queue
         bakeryService.channel.sendToQueue(
-          'user-activity',
+          QUEUES.USER_ACTIVITY,
           Buffer.from(
             JSON.stringify({
               userId: user.id,
               action: 'login',
+              timestamp: new Date(),
+            })
+          ),
+          { persistent: true }
+        );
+
+        // Analytics stream
+        bakeryService.channel.sendToQueue(
+          QUEUES.ANALYTICS,
+          Buffer.from(
+            JSON.stringify({
+              type: 'user_login',
+              userId: user.id,
               timestamp: new Date(),
             })
           ),
@@ -217,7 +400,6 @@ const bakeryController = {
     }
   },
 
-  // Added this method to match the route
   async getUserById(req, res) {
     try {
       const user = await bakeryService.getUserById(req.params.id);

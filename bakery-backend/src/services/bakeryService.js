@@ -7,6 +7,14 @@ const RETRY_DELAY = 5000; // Delay between retries in milliseconds
 
 let channel;
 
+// Define all queue names as constants to ensure consistency
+const QUEUES = {
+  USER_ACTIVITY: 'user-activity',
+  ORDER_PROCESSING: 'order-processing',
+  ANALYTICS: 'analytics-stream',
+  NOTIFICATIONS: 'notifications-stream'
+};
+
 const bakeryService = {
   // Product operations (PUBLIC)
   async getAllProducts() {
@@ -83,9 +91,56 @@ const bakeryService = {
 
     // Send to RabbitMQ for order processing
     if (channel) {
+      // Send to order processing queue
       channel.sendToQueue(
-        'order-processing',
+        QUEUES.ORDER_PROCESSING,
         Buffer.from(JSON.stringify({ orderId: order.id })),
+        { persistent: true }
+      );
+
+      // Send to user activity queue
+      channel.sendToQueue(
+        QUEUES.USER_ACTIVITY,
+        Buffer.from(
+          JSON.stringify({
+            userId,
+            orderId: order.id,
+            action: 'order_created',
+            orderTotal: total,
+            timestamp: new Date(),
+          })
+        ),
+        { persistent: true }
+      );
+
+      // Send to analytics stream
+      channel.sendToQueue(
+        QUEUES.ANALYTICS,
+        Buffer.from(
+          JSON.stringify({
+            type: 'order',
+            userId,
+            orderId: order.id,
+            total,
+            itemCount: orderItems.length,
+            timestamp: new Date(),
+          })
+        ),
+        { persistent: true }
+      );
+
+      // Send to notifications stream
+      channel.sendToQueue(
+        QUEUES.NOTIFICATIONS,
+        Buffer.from(
+          JSON.stringify({
+            type: 'new_order',
+            userId,
+            orderId: order.id,
+            message: `New order #${order.id} placed`,
+            timestamp: new Date(),
+          })
+        ),
         { persistent: true }
       );
     }
@@ -130,6 +185,9 @@ const bakeryService = {
     return prisma.user.findUnique({ where: { email } });
   },
 
+  // Export queues for external use
+  QUEUES,
+
   // Expose channel for external use
   get channel() {
     return channel; // Dynamic access of the live channel value
@@ -149,9 +207,18 @@ async function connectRabbitMQ() {
       const connection = await amqp.connect(process.env.RABBITMQ_URL);
       channel = await connection.createChannel();
 
-      // Declare queues with durability
-      await channel.assertQueue('user-activity', { durable: true });
-      await channel.assertQueue('order-processing', { durable: true });
+      // Declare all queues with durability
+      console.log('Declaring queues...');
+      await channel.assertQueue(QUEUES.USER_ACTIVITY, { durable: true });
+      await channel.assertQueue(QUEUES.ORDER_PROCESSING, { durable: true });
+      await channel.assertQueue(QUEUES.ANALYTICS, { durable: true });
+      await channel.assertQueue(QUEUES.NOTIFICATIONS, { durable: true });
+
+      console.log('Queues declared:');
+      console.log(`- ${QUEUES.USER_ACTIVITY}`);
+      console.log(`- ${QUEUES.ORDER_PROCESSING}`);
+      console.log(`- ${QUEUES.ANALYTICS}`);
+      console.log(`- ${QUEUES.NOTIFICATIONS}`);
 
       console.log('Connected to RabbitMQ successfully');
       return;
@@ -164,7 +231,5 @@ async function connectRabbitMQ() {
 
   throw new Error('Failed to connect to RabbitMQ after multiple attempts.');
 }
-
-// Removed redundant connection attempt — handled via connectPromise
 
 module.exports = { ...bakeryService };
