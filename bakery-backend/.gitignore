@@ -1,0 +1,12 @@
+# bakery-backend/.gitignore
+
+.env
+node_modules/
+dist/
+*.log
+prisma/migrations/dev.db
+prisma/migrations/dev.db-journal
+prisma/migrations/*.log
+prisma/migrations/*.json
+prisma/migrations/*.zip
+prisma/migrations/*.tgz

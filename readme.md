@@ -2,6 +2,13 @@
 
 A full-stack bakery management system with Node.js backend and React frontend, featuring user management, product catalog, shopping cart, and order system with RabbitMQ + PostgreSQL integration.
 
+🔄 System Workflow
+Below is a high-level workflow of the Bakery Management System showcasing the interaction between the frontend, backend, message queue, and database components:
+
+![Bakery Management System Workflow](./A_flowchart_infographic_presents_a_Bakery_Manageme.png)
+
+---
+
 ## ✨ Key Features
 
 ### **Backend (Node.js + Express)**
